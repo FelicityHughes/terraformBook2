@@ -15,7 +15,15 @@ module "onprem_networks" {
 
 resource "aws_key_pair" "web-key" {
   key_name = "${var.key_name}"
-  public_key = "${file("~/.ssh/id_rsa.pub")}"
+  public_key = "${file("~/.ssh/aws_rsa.pub")}"
+}
+
+data "template_file" "index" {
+  count = "${length(var.instance_ips)}"
+  template = "${file("files/index.html.tpl")}"
+  vars {
+    hostname = "web-${format("%03d", count.index + 1)}"
+  }
 }
 
 resource "aws_instance" "web" {
@@ -24,7 +32,6 @@ resource "aws_instance" "web" {
   key_name                    = "${var.key_name}"
   subnet_id                   = "${module.vpc.public_subnet_id}"
   private_ip                  = "${var.instance_ips[count.index]}"
-  user_data                   = "${file("files/web_bootstrap.sh")}"
   associate_public_ip_address = true
 
   vpc_security_group_ids = [
@@ -37,6 +44,26 @@ resource "aws_instance" "web" {
   }
 
   count = "${length(var.instance_ips)}"
+
+  connection {
+    user = "ubuntu"
+    private_key = "${file(var.key_path)}"
+  }
+
+  provisioner "file" {
+    content = "${element(data.template_file.index.*.rendered, count.index)}"
+    destination = "/tmp/index.html"
+  }
+
+  provisioner "remote-exec" {
+    script = "files/bootstrap_puppet.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mv /tmp/index.html /var/www/html/index.html"
+    ]
+  }
 }
 
 resource "aws_elb" "web" {

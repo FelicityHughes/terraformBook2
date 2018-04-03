@@ -1,5 +1,11 @@
 variable "key_name" {
   description = "The AWS key pair to use for resources."
+  default = "felicity-terrabook-useast1"
+}
+
+variable "key_path" {
+  description = "Path to the private key used for SSH connections."
+  default = "~/.ssh/aws_rsa"
 }
 
 variable "ami" {
